@@ -74,7 +74,36 @@ fi
 
 read -p "Введите внутренний SNI Self порт (Enter для 9000): " SPORT
 SPORT=${SPORT:-9000}
-show_complete "Параметры получены"
+
+# Выбор шаблона сайта
+echo ""
+echo -e "${CYAN}Выберите шаблон сайта:${NC}"
+echo -e "  ${YELLOW}1)${NC} Бизнес / Корпоративный  (html5up-landed)"
+echo -e "  ${YELLOW}2)${NC} Портфолио / Агентство   (html5up-story)"
+echo -e "  ${YELLOW}3)${NC} Технологии / SaaS        (html5up-phantom)"
+echo -e "  ${YELLOW}4)${NC} Блог / Медиа             (html5up-editorial)"
+echo -e "  ${YELLOW}5)${NC} Личный сайт              (html5up-identity)"
+echo -e "  ${YELLOW}6)${NC} Случайный из коллекции   (learning-zone)"
+read -p "Введите номер шаблона (Enter для 6): " TEMPLATE_CHOICE
+TEMPLATE_CHOICE=${TEMPLATE_CHOICE:-6}
+
+case $TEMPLATE_CHOICE in
+    1) TEMPLATE_URL="https://github.com/ajlkn/html5up-landed.git"
+       TEMPLATE_NAME="Бизнес / Корпоративный" ;;
+    2) TEMPLATE_URL="https://github.com/ajlkn/html5up-story.git"
+       TEMPLATE_NAME="Портфолио / Агентство" ;;
+    3) TEMPLATE_URL="https://github.com/ajlkn/html5up-phantom.git"
+       TEMPLATE_NAME="Технологии / SaaS" ;;
+    4) TEMPLATE_URL="https://github.com/ajlkn/html5up-editorial.git"
+       TEMPLATE_NAME="Блог / Медиа" ;;
+    5) TEMPLATE_URL="https://github.com/ajlkn/html5up-identity.git"
+       TEMPLATE_NAME="Личный сайт" ;;
+    *) TEMPLATE_URL="https://github.com/learning-zone/website-templates.git"
+       TEMPLATE_NAME="Случайный из коллекции"
+       TEMPLATE_CHOICE=6 ;;
+esac
+
+show_complete "Параметры получены (шаблон: $TEMPLATE_NAME)"
 
 # Шаг 3: Обновление системы
 CURRENT_STEP=$((CURRENT_STEP + 1))
@@ -167,12 +196,18 @@ fi
 
 # Шаг 11: Загрузка шаблона сайта
 CURRENT_STEP=$((CURRENT_STEP + 1))
-show_progress $CURRENT_STEP $TOTAL_STEPS "Загрузка шаблона веб-сайта..."
+show_progress $CURRENT_STEP $TOTAL_STEPS "Загрузка шаблона: $TEMPLATE_NAME..."
 TEMP_DIR=$(mktemp -d)
-if execute_silent "git clone --depth 1 https://github.com/learning-zone/website-templates.git $TEMP_DIR"; then
-    SITE_DIR=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | shuf -n 1)
-    cp -r "$SITE_DIR"/* /usr/share/nginx/html/ 2>/dev/null
-    show_complete "Шаблон сайта установлен"
+if execute_silent "git clone --depth 1 $TEMPLATE_URL $TEMP_DIR"; then
+    if [[ "$TEMPLATE_CHOICE" == "6" ]]; then
+        # Для коллекции — берём случайную подпапку
+        SITE_DIR=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | shuf -n 1)
+        cp -r "$SITE_DIR"/* /usr/share/nginx/html/ 2>/dev/null
+    else
+        # Для конкретного шаблона — копируем корень репозитория
+        cp -r "$TEMP_DIR"/* /usr/share/nginx/html/ 2>/dev/null
+    fi
+    show_complete "Шаблон сайта установлен ($TEMPLATE_NAME)"
 else
     show_error "Не удалось загрузить шаблон сайта"
     rm -rf "$TEMP_DIR"
