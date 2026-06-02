@@ -56,7 +56,7 @@ CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Проверка операционной системы..."
 sleep 0.3
 
-if ! grep -E -q "^(ID=rocky|ID=rhel|ID=almalinux)" /etc/os-release; then
+if ! grep -Eiq "rocky|rhel|almalinux" /etc/os-release; then
     show_error "Система не поддерживается. Требуется Rocky Linux / AlmaLinux / RHEL."
     exit 1
 fi
