@@ -6,9 +6,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m' # Без цвета
+NC='\033[0m'
 
-# Функция для отображения прогресса (только ASCII)
 show_progress() {
     local current=$1
     local total=$2
@@ -24,23 +23,36 @@ show_progress() {
 }
 
 show_complete() {
-    local status=$1
-    echo -e "\n${GREEN}[OK]${NC} ${status}"
+    echo -e "\n${GREEN}[OK]${NC} ${1}"
 }
 
 show_error() {
-    local status=$1
-    echo -e "\n${RED}[ERROR]${NC} ${status}"
+    echo -e "\n${RED}[ERROR]${NC} ${1}"
 }
 
-execute_silent() {
+# Запуск команды со спиннером
+run_with_spinner() {
     local cmd=$1
-    local log_file="/tmp/sni_setup_$(date +%s).log"
-    eval "$cmd" >> "$log_file" 2>&1
-    return $?
+    local msg=$2
+    local log_file="/tmp/sni_setup_$(date +%s)_$$.log"
+    local spin=('|' '/' '-' '\\')
+    local i=0
+
+    eval "$cmd" >> "$log_file" 2>&1 &
+    local pid=$!
+
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r  ${CYAN}${spin[$i]}${NC}  ${YELLOW}%s${NC}  " "$msg"
+        i=$(( (i+1) % 4 ))
+        sleep 0.15
+    done
+
+    wait "$pid"
+    local exit_code=$?
+    printf "\r                                                              \r"
+    return $exit_code
 }
 
-# Очистка экрана и вывод заголовка
 clear
 echo -e "${CYAN}=====================================================${NC}"
 echo -e "${CYAN}  Установка и настройка Self SNI Scripts by begugla  ${NC}"
@@ -62,7 +74,7 @@ if ! grep -Eiq "rocky|rhel|almalinux" /etc/os-release; then
 fi
 show_complete "Операционная система совместима"
 
-# Шаг 2: Запрос доменного имени
+# Шаг 2: Запрос данных
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Ожидание ввода данных..."
 echo ""
@@ -75,7 +87,6 @@ fi
 read -p "Введите внутренний SNI Self порт (Enter для 9000): " SPORT
 SPORT=${SPORT:-9000}
 
-# Выбор шаблона сайта
 echo ""
 echo -e "${CYAN}Выберите шаблон сайта:${NC}"
 echo -e "  ${YELLOW}1)${NC} Бизнес / Корпоративный  (html5up-landed)"
@@ -88,15 +99,15 @@ read -p "Введите номер шаблона (Enter для 6): " TEMPLATE_C
 TEMPLATE_CHOICE=${TEMPLATE_CHOICE:-6}
 
 case $TEMPLATE_CHOICE in
-    1) TEMPLATE_URL="https://github.com/ajlkn/html5up-landed.git"
+    1) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-creative.git"
        TEMPLATE_NAME="Бизнес / Корпоративный" ;;
-    2) TEMPLATE_URL="https://github.com/ajlkn/html5up-story.git"
+    2) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-freelancer.git"
        TEMPLATE_NAME="Портфолио / Агентство" ;;
-    3) TEMPLATE_URL="https://github.com/ajlkn/html5up-phantom.git"
+    3) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-new-age.git"
        TEMPLATE_NAME="Технологии / SaaS" ;;
-    4) TEMPLATE_URL="https://github.com/ajlkn/html5up-editorial.git"
+    4) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-clean-blog.git"
        TEMPLATE_NAME="Блог / Медиа" ;;
-    5) TEMPLATE_URL="https://github.com/ajlkn/html5up-identity.git"
+    5) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-resume.git"
        TEMPLATE_NAME="Личный сайт" ;;
     *) TEMPLATE_URL="https://github.com/learning-zone/website-templates.git"
        TEMPLATE_NAME="Случайный из коллекции"
@@ -105,43 +116,49 @@ esac
 
 show_complete "Параметры получены (шаблон: $TEMPLATE_NAME)"
 
-# Шаг 3: Обновление системы
+# Шаг 3: Обновление пакетов
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Обновление списка пакетов..."
-if execute_silent "dnf makecache -y"; then
+if run_with_spinner "dnf makecache -y" "Обновление списка пакетов..."; then
     show_complete "Список пакетов обновлен"
 else
     show_error "Не удалось обновить список пакетов"
     exit 1
 fi
 
-# Шаг 4: Установка EPEL и зависимостей
+# Шаг 4: Установка EPEL
 CURRENT_STEP=$((CURRENT_STEP + 1))
-show_progress $CURRENT_STEP $TOTAL_STEPS "Установка компонентов (epel, nginx, certbot, git)..."
-if execute_silent "dnf install -y epel-release" && \
-   execute_silent "dnf install -y nginx certbot python3-certbot-nginx git curl bind-utils"; then
+show_progress $CURRENT_STEP $TOTAL_STEPS "Установка EPEL репозитория..."
+if run_with_spinner "dnf install -y epel-release" "Установка EPEL..."; then
+    show_complete "EPEL репозиторий установлен"
+else
+    show_error "Не удалось установить EPEL"
+    exit 1
+fi
+
+# Шаг 4б: Установка компонентов
+show_progress $CURRENT_STEP $TOTAL_STEPS "Установка nginx, certbot, git..."
+if run_with_spinner "dnf install -y nginx certbot python3-certbot-nginx git curl bind-utils" "Установка компонентов (это может занять несколько минут)..."; then
     show_complete "Компоненты успешно установлены"
 else
     show_error "Не удалось установить необходимые компоненты"
     exit 1
 fi
 
-# Шаг 5: Получение внешнего IP
+# Шаг 5: Внешний IP
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Определение внешнего IP сервера..."
 external_ip=$(curl -s --max-time 5 https://api.ipify.org)
-
 if [[ -z "$external_ip" ]]; then
     show_error "Не удалось определить внешний IP сервера"
     exit 1
 fi
 show_complete "Внешний IP сервера: $external_ip"
 
-# Шаг 6: Проверка DNS записи
+# Шаг 6: DNS
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Проверка A-записи домена..."
 domain_ip=$(dig +short A "$DOMAIN" | head -n1)
-
 if [[ -z "$domain_ip" ]]; then
     show_error "Не удалось получить A-запись для домена $DOMAIN"
     echo -e "${YELLOW}Подробнее: https://github.com/begugla0/selfsniscripts${NC}"
@@ -149,7 +166,7 @@ if [[ -z "$domain_ip" ]]; then
 fi
 show_complete "A-запись домена: $domain_ip"
 
-# Шаг 7: Сравнение IP адресов
+# Шаг 7: Сравнение IP
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Проверка соответствия DNS записи..."
 if [[ "$domain_ip" != "$external_ip" ]]; then
@@ -168,43 +185,35 @@ show_complete "Nginx остановлен"
 # Шаг 9: Проверка портов
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Проверка портов 80 и 443..."
-
 if ss -tuln | grep -q ":443 "; then
     show_error "Порт 443 занят"
-    echo -e "${YELLOW}Подробнее: https://github.com/begugla0/selfsniscripts${NC}"
     exit 1
 fi
-
 if ss -tuln | grep -q ":80 "; then
     show_error "Порт 80 занят"
-    echo -e "${YELLOW}Подробнее: https://github.com/begugla0/selfsniscripts${NC}"
     exit 1
 fi
 show_complete "Порты 80 и 443 свободны"
 
-# Шаг 10: Настройка firewalld (специфично для Rocky Linux)
+# Шаг 10: firewalld
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Открытие портов в firewalld..."
 if systemctl is-active --quiet firewalld; then
-    execute_silent "firewall-cmd --permanent --add-service=http"
-    execute_silent "firewall-cmd --permanent --add-service=https"
-    execute_silent "firewall-cmd --reload"
+    run_with_spinner "firewall-cmd --permanent --add-service=http && firewall-cmd --permanent --add-service=https && firewall-cmd --reload" "Настройка firewalld..."
     show_complete "Порты 80 и 443 открыты в firewalld"
 else
     show_complete "firewalld не активен, пропуск"
 fi
 
-# Шаг 11: Загрузка шаблона сайта
+# Шаг 11: Шаблон сайта
 CURRENT_STEP=$((CURRENT_STEP + 1))
-show_progress $CURRENT_STEP $TOTAL_STEPS "Загрузка шаблона: $TEMPLATE_NAME..."
+show_progress $CURRENT_STEP $TOTAL_STEPS "Загрузка шаблона сайта..."
 TEMP_DIR=$(mktemp -d)
-if execute_silent "git clone --depth 1 $TEMPLATE_URL $TEMP_DIR"; then
+if run_with_spinner "git clone --depth 1 $TEMPLATE_URL $TEMP_DIR" "Клонирование шаблона $TEMPLATE_NAME..."; then
     if [[ "$TEMPLATE_CHOICE" == "6" ]]; then
-        # Для коллекции — берём случайную подпапку
         SITE_DIR=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | shuf -n 1)
         cp -r "$SITE_DIR"/* /usr/share/nginx/html/ 2>/dev/null
     else
-        # Для конкретного шаблона — копируем корень репозитория
         cp -r "$TEMP_DIR"/* /usr/share/nginx/html/ 2>/dev/null
     fi
     show_complete "Шаблон сайта установлен ($TEMPLATE_NAME)"
@@ -214,10 +223,10 @@ else
     exit 1
 fi
 
-# Шаг 12: Получение SSL сертификата
+# Шаг 12: SSL сертификат
 CURRENT_STEP=$((CURRENT_STEP + 1))
-show_progress $CURRENT_STEP $TOTAL_STEPS "Получение SSL сертификата (может занять время)..."
-if execute_silent "certbot certonly --standalone -d $DOMAIN --agree-tos -m admin@$DOMAIN --non-interactive"; then
+show_progress $CURRENT_STEP $TOTAL_STEPS "Получение SSL сертификата..."
+if run_with_spinner "certbot certonly --standalone -d $DOMAIN --agree-tos -m admin@$DOMAIN --non-interactive" "Получение SSL сертификата (может занять время)..."; then
     show_complete "SSL сертификат успешно получен"
 else
     show_error "Не удалось получить SSL сертификат"
@@ -225,11 +234,10 @@ else
     exit 1
 fi
 
-# Настройка автопродления сертификата
+# Автопродление
 if systemctl list-timers 2>/dev/null | grep -q certbot.timer; then
     systemctl enable certbot.timer 2>/dev/null || true
     systemctl start certbot.timer 2>/dev/null || true
-
     if ! systemctl cat certbot.timer 2>/dev/null | grep -q "Persistent=true"; then
         mkdir -p /etc/systemd/system/certbot.timer.d/
         cat > /etc/systemd/system/certbot.timer.d/override.conf <<'EOF'
@@ -239,8 +247,7 @@ EOF
         systemctl daemon-reload
         systemctl restart certbot.timer
     fi
-
-    show_complete "Автопродление настроено (systemd timer + Persistent)"
+    show_complete "Автопродление настроено (systemd timer)"
 elif [ -f /etc/cron.d/certbot ]; then
     show_complete "Автопродление настроено (cron)"
 else
@@ -253,14 +260,12 @@ CRONEOF
     show_complete "Автопродление настроено (новый cron)"
 fi
 
-execute_silent "certbot renew --dry-run" || true
+run_with_spinner "certbot renew --dry-run" "Проверка автопродления..." || true
 
-# Шаг 13: Настройка Nginx
-# На Rocky Linux конфиги лежат в /etc/nginx/conf.d/, не sites-enabled
+# Шаг 13: Конфиг nginx
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Создание конфигурации Nginx..."
 
-# Убираем дефолтный конфиг если есть
 rm -f /etc/nginx/conf.d/default.conf
 
 cat > /etc/nginx/conf.d/sni.conf <<EOF
@@ -293,7 +298,6 @@ server {
     resolver 8.8.8.8 8.8.4.4 valid=300s;
     resolver_timeout 5s;
 
-    # Настройки Proxy Protocol
     real_ip_header proxy_protocol;
     set_real_ip_from 127.0.0.1;
 
@@ -304,12 +308,10 @@ server {
 }
 EOF
 
-# Разрешаем nginx коннектиться по сети (SELinux)
-execute_silent "setsebool -P httpd_can_network_connect 1" || true
-
+run_with_spinner "setsebool -P httpd_can_network_connect 1" "Настройка SELinux..." || true
 show_complete "Конфигурация Nginx создана"
 
-# Шаг 14: Запуск Nginx
+# Шаг 14: Запуск nginx
 CURRENT_STEP=$((CURRENT_STEP + 1))
 show_progress $CURRENT_STEP $TOTAL_STEPS "Запуск и включение Nginx..."
 
@@ -323,10 +325,8 @@ else
     exit 1
 fi
 
-# Очистка временных файлов
 rm -rf "$TEMP_DIR"
 
-# Финальное сообщение
 echo ""
 echo -e "${CYAN}=====================================================${NC}"
 echo -e "${CYAN}          Установка завершена успешно!              ${NC}"
