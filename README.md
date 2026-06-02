@@ -20,9 +20,9 @@
 ## Установка
 
 ```bash
-curl -O https://raw.githubusercontent.com/<your-user>/<your-repo>/main/setup_rocky.sh
-chmod +x setup_rocky.sh
-bash setup_rocky.sh
+curl -O https://raw.githubusercontent.com/WayneFX36/selfsni/refs/heads/main/selfsni.sh
+chmod +x selfsni.sh
+bash selfsni.sh
 ```
 
 ## Что спрашивает скрипт
