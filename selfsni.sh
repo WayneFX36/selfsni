@@ -100,17 +100,23 @@ TEMPLATE_CHOICE=${TEMPLATE_CHOICE:-6}
 
 case $TEMPLATE_CHOICE in
     1) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-creative.git"
-       TEMPLATE_NAME="Бизнес / Корпоративный" ;;
+       TEMPLATE_NAME="Бизнес / Корпоративный"
+       WEBROOT="/usr/share/nginx/html/dist" ;;
     2) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-freelancer.git"
-       TEMPLATE_NAME="Портфолио / Агентство" ;;
+       TEMPLATE_NAME="Портфолио / Агентство"
+       WEBROOT="/usr/share/nginx/html/dist" ;;
     3) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-new-age.git"
-       TEMPLATE_NAME="Технологии / SaaS" ;;
+       TEMPLATE_NAME="Технологии / SaaS"
+       WEBROOT="/usr/share/nginx/html/dist" ;;
     4) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-clean-blog.git"
-       TEMPLATE_NAME="Блог / Медиа" ;;
+       TEMPLATE_NAME="Блог / Медиа"
+       WEBROOT="/usr/share/nginx/html/dist" ;;
     5) TEMPLATE_URL="https://github.com/StartBootstrap/startbootstrap-resume.git"
-       TEMPLATE_NAME="Личный сайт" ;;
+       TEMPLATE_NAME="Личный сайт"
+       WEBROOT="/usr/share/nginx/html/dist" ;;
     *) TEMPLATE_URL="https://github.com/learning-zone/website-templates.git"
        TEMPLATE_NAME="Случайный из коллекции"
+       WEBROOT="/usr/share/nginx/html"
        TEMPLATE_CHOICE=6 ;;
 esac
 
@@ -292,17 +298,12 @@ server {
     ssl_prefer_server_ciphers on;
     ssl_ciphers "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384";
 
-    ssl_stapling on;
-    ssl_stapling_verify on;
-
-    resolver 8.8.8.8 8.8.4.4 valid=300s;
-    resolver_timeout 5s;
-
     real_ip_header proxy_protocol;
     set_real_ip_from 127.0.0.1;
 
     location / {
-        root /usr/share/nginx/html;
+        root $WEBROOT;
+        try_files \$uri \$uri/ /index.html;
         index index.html;
     }
 }
