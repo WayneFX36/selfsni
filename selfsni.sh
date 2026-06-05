@@ -266,7 +266,7 @@ CRONEOF
     show_complete "Автопродление настроено (новый cron)"
 fi
 
-run_with_spinner "certbot renew --dry-run" "Проверка автопродления..." || true
+
 
 # Шаг 13: Конфиг nginx
 CURRENT_STEP=$((CURRENT_STEP + 1))
